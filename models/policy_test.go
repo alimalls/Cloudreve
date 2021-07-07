@@ -2,13 +2,14 @@ package model
 
 import (
 	"encoding/json"
-	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/HFO4/cloudreve/pkg/cache"
-	"github.com/jinzhu/gorm"
-	"github.com/stretchr/testify/assert"
 	"strconv"
 	"testing"
 	"time"
+
+	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/cloudreve/Cloudreve/v3/pkg/cache"
+	"github.com/jinzhu/gorm"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGetPolicyByID(t *testing.T) {
@@ -209,6 +210,28 @@ func TestPolicy_GetUploadURL(t *testing.T) {
 		asserts.Equal("http://127.0.0.1", policy.GetUploadURL())
 	}
 
+	// S3 未填写自动生成
+	{
+		policy := Policy{
+			Type:              "s3",
+			Server:            "",
+			BucketName:        "bucket",
+			OptionsSerialized: PolicyOption{Region: "us-east"},
+		}
+		asserts.Equal("https://bucket.s3.us-east.amazonaws.com/", policy.GetUploadURL())
+	}
+
+	// s3 自己指定
+	{
+		policy := Policy{
+			Type:              "s3",
+			Server:            "https://s3.us-east.amazonaws.com/",
+			BucketName:        "bucket",
+			OptionsSerialized: PolicyOption{Region: "us-east"},
+		}
+		asserts.Equal("https://s3.us-east.amazonaws.com/bucket", policy.GetUploadURL())
+	}
+
 }
 
 func TestPolicy_IsPathGenerateNeeded(t *testing.T) {
@@ -234,7 +257,8 @@ func TestPolicy_UpdateAccessKey(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectExec("UPDATE(.+)").WillReturnResult(sqlmock.NewResult(1, 1))
 	mock.ExpectCommit()
-	err := policy.UpdateAccessKey("123")
+	policy.AccessKey = "123"
+	err := policy.SaveAndClearCache()
 	asserts.NoError(mock.ExpectationsWereMet())
 	asserts.NoError(err)
 }
